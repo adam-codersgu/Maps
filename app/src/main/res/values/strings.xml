@@ -1,4 +1,31 @@
 <resources>
     <string name="app_name">Maps</string>
-    <string name="title_activity_maps">MapsActivity</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="hint">Hint</string>
+    <string name="compass">Compass</string>
+    <string name="ok">OK</string>
+    <string name="timer">Seconds remaining: %1$d</string>
+    <string name="times_up">Time\'s up!</string>
+
+    <!-- Treasure hunt -->
+    <string name="begin_search">Begin your search for the treasure!</string>
+    <string name="start_treasure_hunt">Start treasure hunt!</string>
+    <string name="hunt_ended">Treasure hunt ended</string>
+    <string name="end_the_treasure_hunt">End treasure hunt</string>
+    <string name="treasure_found">You found the treasure!</string>
+
+    <!-- Errors -->
+    <string name="address_error">Error retrieving the address</string>
+    <string name="no_address">No address found</string>
+    <string name="geofence_error">A Geofence error has occurred: %1$s</string>
+    <string name="location_error">There has been an error finding your current location</string>
+    <string name="permission_required">This application requires access your device\'s location to organise the treasure hunt.</string>
+    <string name="treasure_error">Could not load treasure location. Error: %1$s</string>
+
+    <!-- Directions -->
+    <string name="north">north</string>
+    <string name="east">east</string>
+    <string name="south">south</string>
+    <string name="west">west</string>
+    <string name="direction">Head %1$s %2$s</string>
 </resources>
