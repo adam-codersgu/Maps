@@ -399,7 +399,5 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         if (!isRotating) updateOrientationAngles()
     }
 
-    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-        TODO("Not yet implemented")
-    }
+    override fun onAccuracyChanged(p0: Sensor?, p1: Int) { }
 }
