@@ -1,6 +1,8 @@
 package com.codersguidebook.maps
 
 import android.Manifest
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
@@ -10,6 +12,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
@@ -35,13 +41,18 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import kotlin.random.Random
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
     companion object {
         const val MINIMUM_RECOMMENDED_RADIUS = 100F
         const val GEOFENCE_KEY = "TreasureLocation"
     }
 
+    private val accelerometerReading = FloatArray(3)
+    private val magnetometerReading = FloatArray(3)
+    private val rotationMatrix = FloatArray(9)
+    private val orientationAngles = FloatArray(3)
+    private var isRotating = false
     private val geofenceList = arrayListOf<Geofence>()
     private var huntStarted = false
     private var receivingLocationUpdates = false
@@ -54,6 +65,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
     private lateinit var mMap: GoogleMap
+    private lateinit var sensorManager: SensorManager
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -103,6 +115,26 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     huntStarted = true
                 }
             }
+        }
+
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+
+        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.also { accelerometer ->
+            sensorManager.registerListener(
+                this,
+                accelerometer,
+                SensorManager.SENSOR_DELAY_NORMAL,
+                SensorManager.SENSOR_DELAY_UI
+            )
+        }
+
+        sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.also { magneticField ->
+            sensorManager.registerListener(
+                this,
+                magneticField,
+                SensorManager.SENSOR_DELAY_NORMAL,
+                SensorManager.SENSOR_DELAY_UI
+            )
         }
     }
 
@@ -309,6 +341,26 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         } catch (_: SecurityException) { }
     }
 
+    private fun updateOrientationAngles() {
+        SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading)
+        SensorManager.getOrientation(rotationMatrix, orientationAngles)
+        val degrees = (Math.toDegrees(orientationAngles[0].toDouble()))
+
+        val newRotation = degrees.toFloat() * -1
+        val rotationChange = newRotation - binding.compass.rotation
+
+        binding.compass.animate().apply {
+            isRotating = true
+            rotationBy(rotationChange)
+            duration = 500
+            setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    isRotating = false
+                }
+            })
+        }.start()
+    }
+
     object LocationPermissionHelper {
         private const val BACKGROUND_LOCATION_PERMISSION = Manifest.permission.ACCESS_BACKGROUND_LOCATION
         private const val COARSE_LOCATION_PERMISSION = Manifest.permission.ACCESS_COARSE_LOCATION
@@ -334,5 +386,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     COARSE_LOCATION_PERMISSION, BACKGROUND_LOCATION_PERMISSION), 0)
             }
         }
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event == null) return
+
+        when (event.sensor.type) {
+            Sensor.TYPE_ACCELEROMETER -> System.arraycopy(event.values, 0, accelerometerReading, 0, accelerometerReading.size)
+            Sensor.TYPE_MAGNETIC_FIELD -> System.arraycopy(event.values, 0, magnetometerReading, 0, magnetometerReading.size)
+        }
+
+        if (!isRotating) updateOrientationAngles()
+    }
+
+    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
+        TODO("Not yet implemented")
     }
 }

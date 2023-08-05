@@ -15,7 +15,6 @@
     <string name="treasure_found">You found the treasure!</string>
 
     <!-- Errors -->
-    <string name="address_error">Error retrieving the address</string>
     <string name="no_address">No address found</string>
     <string name="geofence_error">A Geofence error has occurred: %1$s</string>
     <string name="location_error">There has been an error finding your current location</string>
