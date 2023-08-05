@@ -14,6 +14,7 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -54,6 +55,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    // 3600000 ms equals one hour
+    private val timer = object : CountDownTimer(3600000, 1000) {
+        override fun onTick(millisUntilFinished: Long) {
+            binding.timer.text = getString(R.string.timer, millisUntilFinished / 1000)
+        }
+
+        override fun onFinish() {
+            endTreasureHunt()
+            binding.timer.text = getString(R.string.times_up)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -71,6 +84,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         geofencingClient = LocationServices.getGeofencingClient(this)
 
         registerReceiver(broadcastReceiver, IntentFilter("GEOFENCE_ENTERED"))
+
+        binding.treasureHuntButton.setOnClickListener {
+            when {
+                !this::lastLocation.isInitialized -> Toast.makeText(this, getString(R.string.location_error), Toast.LENGTH_LONG).show()
+                huntStarted -> endTreasureHunt()
+                else -> {
+                    generateTreasureLocation()
+                    binding.treasureHuntButton.text = getString(R.string.end_the_treasure_hunt)
+                    binding.hintButton.visibility = View.VISIBLE
+                    huntStarted = true
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -144,12 +170,17 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             geofencingClient.addGeofences(createGeofencingRequest(), createGeofencePendingIntent())
                 .addOnSuccessListener(this) {
                     Toast.makeText(this, getString(R.string.begin_search), Toast.LENGTH_SHORT).show()
-                    // TODO: Start the timer and display an initial hint
+                    timer.start()
+                    showHint()
                 }
                 .addOnFailureListener(this) { e ->
                     Toast.makeText(this, getString(R.string.treasure_error, e.message), Toast.LENGTH_SHORT).show()
                 }
         } catch (_: SecurityException) {}
+
+        binding.hintButton.setOnClickListener {
+            showHint()
+        }
     }
 
     private fun createGeofencingRequest(): GeofencingRequest {
@@ -175,7 +206,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.treasureHuntButton.text = getString(R.string.start_treasure_hunt)
         binding.hintButton.visibility = View.INVISIBLE
         huntStarted = false
-        // TODO: Cancel the timer here
+        timer.cancel()
         binding.timer.text = getString(R.string.hunt_ended)
     }
 
@@ -204,6 +235,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .position(location)
             .title(text)
         treasureMarker = mMap.addMarker(markerOptions)
+    }
+
+    private fun showHint() {
+        if (treasureLocation != null && this::lastLocation.isInitialized) {
+            val latDir = if (treasureLocation!!.latitude > lastLocation.latitude) getString(R.string.north)
+            else getString(R.string.south)
+            val lonDir = if (treasureLocation!!.longitude > lastLocation.longitude) getString(R.string.east)
+            else getString(R.string.west)
+            Toast.makeText(this, getString(R.string.direction, latDir, lonDir), Toast.LENGTH_SHORT).show()
+        }
     }
 
     object LocationPermissionHelper {
