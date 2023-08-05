@@ -10,7 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Color
+import android.location.Address
+import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.view.View
@@ -24,9 +25,9 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import kotlin.random.Random
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -170,7 +171,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             }
             addOnFailureListener { }
         }
-        if (treasureMarker == null) treasureMarker = placeMarkerOnMap(treasureLocation!!)
+        if (treasureMarker == null) placeAddressMarkerOnMap(treasureLocation!!)
         binding.treasureHuntButton.text = getString(R.string.start_treasure_hunt)
         binding.hintButton.visibility = View.INVISIBLE
         huntStarted = false
@@ -181,6 +182,28 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun removeTreasureMarker() {
         treasureMarker?.remove()
         treasureMarker = null
+    }
+
+    private fun placeAddressMarkerOnMap(location: LatLng) {
+        val geocodeListener = object : Geocoder.GeocodeListener {
+            override fun onGeocode(addresses: MutableList<Address>) {
+                val address = addresses[0].getAddressLine(0) ?: getString(R.string.no_address)
+                addTreasureMarker(location, address)
+            }
+
+            override fun onError(errorMessage: String?) {
+                addTreasureMarker(location, errorMessage)
+            }
+        }
+
+        Geocoder(this).getFromLocation(location.latitude, location.longitude, 1, geocodeListener)
+    }
+
+    private fun addTreasureMarker(location: LatLng, text: String?) {
+        val markerOptions = MarkerOptions()
+            .position(location)
+            .title(text)
+        treasureMarker = mMap.addMarker(markerOptions)
     }
 
     object LocationPermissionHelper {
