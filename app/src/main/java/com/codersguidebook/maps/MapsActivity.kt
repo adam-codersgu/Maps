@@ -5,11 +5,15 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.location.Location
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -22,6 +26,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
 import kotlin.random.Random
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -32,12 +37,21 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private val geofenceList = arrayListOf<Geofence>()
+    private var huntStarted = false
     private var treasureLocation: LatLng? = null
+    private var treasureMarker: Marker? = null
     private lateinit var binding: ActivityMapsBinding
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var geofencingClient: GeofencingClient
     private lateinit var lastLocation: Location
     private lateinit var mMap: GoogleMap
+
+    private val broadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            endTreasureHunt()
+            Toast.makeText(this@MapsActivity, getString(R.string.treasure_found), Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +68,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         geofencingClient = LocationServices.getGeofencingClient(this)
+
+        registerReceiver(broadcastReceiver, IntentFilter("GEOFENCE_ENTERED"))
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(broadcastReceiver)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -140,6 +161,26 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun createGeofencePendingIntent(): PendingIntent {
         val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
         return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    }
+
+    private fun endTreasureHunt() {
+        geofencingClient.removeGeofences(createGeofencePendingIntent()).run {
+            addOnSuccessListener {
+                geofenceList.clear()
+            }
+            addOnFailureListener { }
+        }
+        if (treasureMarker == null) treasureMarker = placeMarkerOnMap(treasureLocation!!)
+        binding.treasureHuntButton.text = getString(R.string.start_treasure_hunt)
+        binding.hintButton.visibility = View.INVISIBLE
+        huntStarted = false
+        // TODO: Cancel the timer here
+        binding.timer.text = getString(R.string.hunt_ended)
+    }
+
+    private fun removeTreasureMarker() {
+        treasureMarker?.remove()
+        treasureMarker = null
     }
 
     object LocationPermissionHelper {
