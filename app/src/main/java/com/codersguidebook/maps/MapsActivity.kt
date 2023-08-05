@@ -15,12 +15,16 @@ import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.codersguidebook.maps.databinding.ActivityMapsBinding
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -40,12 +44,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private val geofenceList = arrayListOf<Geofence>()
     private var huntStarted = false
+    private var receivingLocationUpdates = false
     private var treasureLocation: LatLng? = null
     private var treasureMarker: Marker? = null
     private lateinit var binding: ActivityMapsBinding
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var geofencingClient: GeofencingClient
     private lateinit var lastLocation: Location
+    private lateinit var locationCallback: LocationCallback
+    private lateinit var locationRequest: LocationRequest
     private lateinit var mMap: GoogleMap
 
     private val broadcastReceiver = object : BroadcastReceiver() {
@@ -97,6 +104,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!receivingLocationUpdates) createLocationRequest()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (this::locationCallback.isInitialized) fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 
     override fun onDestroy() {
@@ -245,6 +262,51 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             else getString(R.string.west)
             Toast.makeText(this, getString(R.string.direction, latDir, lonDir), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun createLocationRequest() {
+        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
+            .setMinUpdateIntervalMillis(5000)
+            .build()
+
+        val locationSettingsRequest = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+            .build()
+
+        val client = LocationServices.getSettingsClient(this)
+        client.checkLocationSettings(locationSettingsRequest).apply {
+            addOnSuccessListener {
+                receivingLocationUpdates = true
+                startLocationUpdates()
+            }
+            addOnFailureListener {
+                if (it is ResolvableApiException) {
+                    registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                        if (result.resultCode == RESULT_OK) {
+                            receivingLocationUpdates = true
+                            startLocationUpdates()
+                        }
+                    }.launch(IntentSenderRequest.Builder(it.resolution).build())
+                }
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startLocationUpdates() {
+        try {
+            locationCallback = object : LocationCallback() {
+                override fun onLocationResult(p0: LocationResult) {
+                    super.onLocationResult(p0)
+
+                    p0.lastLocation?.let { location ->
+                        lastLocation = location
+                    }
+                }
+            }
+
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+        } catch (_: SecurityException) { }
     }
 
     object LocationPermissionHelper {
