@@ -4,23 +4,38 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.codersguidebook.maps.databinding.ActivityMapsBinding
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofencingClient
+import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import kotlin.random.Random
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
+    companion object {
+        const val MINIMUM_RECOMMENDED_RADIUS = 100F
+        const val GEOFENCE_KEY = "TreasureLocation"
+    }
+
+    private val geofenceList = arrayListOf<Geofence>()
+    private var treasureLocation: LatLng? = null
+    private lateinit var geofencingClient: GeofencingClient
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var lastLocation: Location
@@ -40,6 +55,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         if (!LocationPermissionHelper.hasLocationPermission(this)) LocationPermissionHelper.requestPermissions(this)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        geofencingClient = LocationServices.getGeofencingClient(this)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -78,6 +95,54 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun generateTreasureLocation() {
+        val choiceList = listOf(true, false)
+        var choice = choiceList.random()
+        val treasureLat = if (choice) lastLocation.latitude + Random.nextFloat()
+        else lastLocation.latitude - Random.nextFloat()
+        choice = choiceList.random()
+        val treasureLong = if (choice) lastLocation.longitude + Random.nextFloat()
+        else lastLocation.longitude - Random.nextFloat()
+        treasureLocation = LatLng(treasureLat, treasureLong)
+
+        removeTreasureMarker()
+        geofenceList.add(Geofence.Builder()
+            .setRequestId(GEOFENCE_KEY)
+            .setCircularRegion(
+                treasureLat,
+                treasureLong,
+                MINIMUM_RECOMMENDED_RADIUS
+            )
+            .setExpirationDuration(Geofence.NEVER_EXPIRE)
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
+            .build()
+        )
+
+        try {
+            geofencingClient.addGeofences(createGeofencingRequest(), createGeofencePendingIntent())
+                .addOnSuccessListener(this) {
+                    Toast.makeText(this, getString(R.string.begin_search), Toast.LENGTH_SHORT).show()
+                    // TODO: Start the timer and display an initial hint
+                }
+                .addOnFailureListener(this) { e ->
+                    Toast.makeText(this, getString(R.string.treasure_error, e.message), Toast.LENGTH_SHORT).show()
+                }
+        } catch (_: SecurityException) { }
+    }
+
+    private fun createGeofencingRequest(): GeofencingRequest {
+        return GeofencingRequest.Builder().apply {
+            setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            addGeofences(geofenceList)
+        }.build()
+    }
+
+    private fun createGeofencePendingIntent(): PendingIntent {
+        val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
+        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     object LocationPermissionHelper {
