@@ -106,7 +106,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        if (!LocationPermissionHelper.hasLocationPermission(this)) LocationPermissionHelper.requestPermissions(this)
+        if (!LocationPermissionHelper.hasLocationPermission(this)) {
+            LocationPermissionHelper.requestPermissions(this)
+        }
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
